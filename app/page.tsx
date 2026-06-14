@@ -6,8 +6,6 @@ import {
   Check,
   Clipboard,
   Clock3,
-  Compass,
-  Plane,
   RotateCcw,
   Settings,
   TimerReset,
@@ -105,7 +103,7 @@ export default function Home() {
 
   const targetBeijing = formatTargetFull(targetDate, ZONES.beijing);
   const targetCalifornia = formatTargetFull(targetDate, ZONES.california);
-  const summary = `还剩 ${parts.days} 天 ${parts.hours} 小时 ${parts.minutes} 分钟。加州日历：${targetCalifornia}。`;
+  const summary = `还剩 ${parts.days} 天 ${parts.hours} 小时 ${parts.minutes} 分钟`;
 
   const openSettings = () => {
     setDraft(config);
@@ -208,26 +206,13 @@ export default function Home() {
           </div>
 
           <div className="summary-strip">
-            <div>
-              <p className="micro-label">考试锚点</p>
+            <div className="summary-copy">
               <p>{now ? summary : "正在同步设备时间"}</p>
+              <span>加州：{targetCalifornia}</span>
             </div>
             <div className="hours-box">
               <span>{totalHours}</span>
               <b>小时</b>
-            </div>
-          </div>
-
-          <div className="anchor-list">
-            <div>
-              <Compass size={17} strokeWidth={2.2} />
-              <span>北京</span>
-              <b>{targetBeijing}</b>
-            </div>
-            <div>
-              <Plane size={17} strokeWidth={2.2} />
-              <span>加州</span>
-              <b>{targetCalifornia}</b>
             </div>
           </div>
         </div>
