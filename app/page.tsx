@@ -15,13 +15,17 @@ import { TimeRibbon } from "@/components/TimeRibbon";
 import {
   CountdownConfig,
   DEFAULT_CONFIG,
+  HIDDEN_UNITS_STORAGE_KEY,
   STORAGE_KEY,
   TARGET_ZONE_OPTIONS,
+  TIME_UNIT_KEYS,
+  TimeUnitKey,
   ZONES,
   effectiveZone,
-  formatDate,
+  formatMaskedClockTime,
+  formatMaskedDate,
+  formatMaskedTargetFull,
   formatTargetFull,
-  formatTime,
   getRemainingParts,
   getTargetDate,
   pad2,
@@ -34,9 +38,10 @@ type ClockCardProps = {
   zone: string;
   now: Date | null;
   targetDate: Date;
+  hiddenUnits: ReadonlySet<TimeUnitKey>;
 };
 
-function ClockCard({ tone, label, zone, now, targetDate }: ClockCardProps) {
+function ClockCard({ tone, label, zone, now, targetDate, hiddenUnits }: ClockCardProps) {
   return (
     <article className={`clock-card ${tone}`}>
       <div className="clock-card__head">
@@ -45,13 +50,13 @@ function ClockCard({ tone, label, zone, now, targetDate }: ClockCardProps) {
         </span>
         <div>
           <p className="micro-label">{label}</p>
-          <p className="clock-time">{now ? formatTime(now, zone) : "--:--:--"}</p>
+          <p className="clock-time">{now ? formatMaskedClockTime(now, zone, hiddenUnits) : "--:--:--"}</p>
         </div>
       </div>
-      <div className="clock-date-row">
-        <span>{now ? formatDate(now, zone) : "--"}</span>
+      <div className={`clock-date-row${hiddenUnits.has("days") ? " is-hidden" : ""}`}>
+        <span>{now ? formatMaskedDate(now, zone, hiddenUnits) : "--"}</span>
       </div>
-      <p className="target-line">考试时：{formatTargetFull(targetDate, zone)}</p>
+      <p className="target-line">考试时：{formatMaskedTargetFull(targetDate, zone, hiddenUnits)}</p>
     </article>
   );
 }
@@ -73,15 +78,54 @@ function readSavedConfig() {
   return DEFAULT_CONFIG;
 }
 
+function isTimeUnitKey(value: unknown): value is TimeUnitKey {
+  return typeof value === "string" && TIME_UNIT_KEYS.includes(value as TimeUnitKey);
+}
+
+function readSavedHiddenUnits() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(HIDDEN_UNITS_STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) {
+      return saved.filter(isTimeUnitKey);
+    }
+  } catch {
+    localStorage.removeItem(HIDDEN_UNITS_STORAGE_KEY);
+  }
+  return [];
+}
+
+function maskDateInput(dateValue: string, hiddenUnits: ReadonlySet<TimeUnitKey>) {
+  return hiddenUnits.has("days") ? "••••-••-••" : dateValue;
+}
+
+function maskTimeInput(timeValue: string, hiddenUnits: ReadonlySet<TimeUnitKey>) {
+  const [hour = "--", minute = "--"] = timeValue.split(":");
+  return `${hiddenUnits.has("hours") ? "••" : hour}:${hiddenUnits.has("minutes") ? "••" : minute}`;
+}
+
+function maskCountdownValue(
+  value: number,
+  unit: TimeUnitKey,
+  hiddenUnits: ReadonlySet<TimeUnitKey>,
+  padded = false
+) {
+  if (hiddenUnits.has(unit)) {
+    return unit === "days" ? "••" : "••";
+  }
+  return padded ? pad2(value) : String(value);
+}
+
 export default function Home() {
   const [now, setNow] = useState<Date | null>(null);
   const [config, setConfig] = useState<CountdownConfig>(DEFAULT_CONFIG);
   const [draft, setDraft] = useState<CountdownConfig>(DEFAULT_CONFIG);
+  const [hiddenUnits, setHiddenUnits] = useState<TimeUnitKey[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setConfig(readSavedConfig());
+    setHiddenUnits(readSavedHiddenUnits());
     setNow(new Date());
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
@@ -89,6 +133,7 @@ export default function Home() {
 
   const targetDate = useMemo(() => getTargetDate(config), [config]);
   const targetZone = effectiveZone(config.zone);
+  const hiddenUnitSet = useMemo(() => new Set(hiddenUnits), [hiddenUnits]);
   const remainingMs = now ? targetDate.getTime() - now.getTime() : 0;
   const parts = getRemainingParts(remainingMs);
   const totalHours = remainingMs > 0 ? (remainingMs / 3600000).toFixed(1) : "0.0";
@@ -101,9 +146,23 @@ export default function Home() {
           ? "24 小时内"
           : "倒计时中";
 
-  const targetBeijing = formatTargetFull(targetDate, ZONES.beijing);
-  const targetCalifornia = formatTargetFull(targetDate, ZONES.california);
-  const summary = `还剩 ${parts.days} 天 ${parts.hours} 小时 ${parts.minutes} 分钟`;
+  const actualTargetBeijing = formatTargetFull(targetDate, ZONES.beijing);
+  const actualTargetCalifornia = formatTargetFull(targetDate, ZONES.california);
+  const targetBeijing = formatMaskedTargetFull(targetDate, ZONES.beijing, hiddenUnitSet);
+  const targetCalifornia = formatMaskedTargetFull(targetDate, ZONES.california, hiddenUnitSet);
+  const summary = `还剩 ${maskCountdownValue(parts.days, "days", hiddenUnitSet)} 天 ${maskCountdownValue(
+    parts.hours,
+    "hours",
+    hiddenUnitSet
+  )} 小时 ${maskCountdownValue(parts.minutes, "minutes", hiddenUnitSet)} 分钟`;
+  const totalHoursHidden = hiddenUnitSet.has("days") || hiddenUnitSet.has("hours");
+  const visibleTotalHours = totalHoursHidden ? "•••" : totalHours;
+  const displayUnits: Array<{ key: TimeUnitKey; label: string; value: string }> = [
+    { key: "days", label: "天", value: now ? maskCountdownValue(parts.days, "days", hiddenUnitSet) : "--" },
+    { key: "hours", label: "小时", value: now ? maskCountdownValue(parts.hours, "hours", hiddenUnitSet, true) : "--" },
+    { key: "minutes", label: "分钟", value: now ? maskCountdownValue(parts.minutes, "minutes", hiddenUnitSet, true) : "--" },
+    { key: "seconds", label: "秒", value: now ? maskCountdownValue(parts.seconds, "seconds", hiddenUnitSet, true) : "--" }
+  ];
 
   const openSettings = () => {
     setDraft(config);
@@ -124,15 +183,27 @@ export default function Home() {
   const resetConfig = () => {
     setConfig(DEFAULT_CONFIG);
     setDraft(DEFAULT_CONFIG);
+    setHiddenUnits([]);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(HIDDEN_UNITS_STORAGE_KEY);
     setSettingsOpen(false);
+  };
+
+  const toggleHiddenUnit = (unit: TimeUnitKey) => {
+    setHiddenUnits((current) => {
+      const next = current.includes(unit)
+        ? current.filter((item) => item !== unit)
+        : [...current, unit];
+      localStorage.setItem(HIDDEN_UNITS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
   const copySummary = async () => {
     const text = `${config.title}：${zoneLabel(config.zone)} ${formatTargetFull(
       targetDate,
       targetZone
-    )}；北京时间 ${targetBeijing}；加州时间 ${targetCalifornia}。`;
+    )}；北京时间 ${actualTargetBeijing}；加州时间 ${actualTargetCalifornia}。`;
     await navigator.clipboard?.writeText(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
@@ -171,38 +242,61 @@ export default function Home() {
               </p>
               <h2>{config.title}</h2>
               <p className="target-copy">
-                {zoneLabel(config.zone)} {formatTargetFull(targetDate, targetZone)}
+                {zoneLabel(config.zone)} {formatMaskedTargetFull(targetDate, targetZone, hiddenUnitSet)}
               </p>
             </div>
             <div className="target-chip">
               <CalendarClock size={18} strokeWidth={2.2} />
-              <span>{config.date}</span>
-              <b>{config.time}</b>
+              <span>{maskDateInput(config.date, hiddenUnitSet)}</span>
+              <b>{maskTimeInput(config.time, hiddenUnitSet)}</b>
             </div>
           </div>
 
           <div className="countdown-grid" aria-live="polite">
-            <div className="count-unit">
-              <strong>{now ? parts.days : "--"}</strong>
-              <span>天</span>
-            </div>
-            <div className="count-unit">
-              <strong>{now ? pad2(parts.hours) : "--"}</strong>
-              <span>小时</span>
-            </div>
-            <div className="count-unit">
-              <strong>{now ? pad2(parts.minutes) : "--"}</strong>
-              <span>分钟</span>
-            </div>
-            <div className="count-unit">
-              <strong>{now ? pad2(parts.seconds) : "--"}</strong>
-              <span>秒</span>
-            </div>
+            {displayUnits.map((unit) => {
+              const isHidden = hiddenUnitSet.has(unit.key);
+              return (
+                <button
+                  key={unit.key}
+                  className={`count-unit${isHidden ? " is-hidden" : ""}`}
+                  type="button"
+                  aria-pressed={isHidden}
+                  aria-label={`${isHidden ? "显示" : "隐藏"}${unit.label}`}
+                  title={`${isHidden ? "显示" : "隐藏"}${unit.label}`}
+                  onClick={() => toggleHiddenUnit(unit.key)}
+                >
+                  <span className="count-unit__inner">
+                    <span className="count-unit__face count-unit__front">
+                      <strong>{unit.value}</strong>
+                      <span>{unit.label}</span>
+                    </span>
+                    <span className="count-unit__face count-unit__back" aria-hidden="true">
+                      <span className="count-unit__mask">••</span>
+                      <span>{unit.label}</span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="mobile-clock-panel" aria-label="手机双时钟">
-            <ClockCard tone="beijing" label="北京时间" zone={ZONES.beijing} now={now} targetDate={targetDate} />
-            <ClockCard tone="california" label="加州时间" zone={ZONES.california} now={now} targetDate={targetDate} />
+            <ClockCard
+              tone="beijing"
+              label="北京时间"
+              zone={ZONES.beijing}
+              now={now}
+              targetDate={targetDate}
+              hiddenUnits={hiddenUnitSet}
+            />
+            <ClockCard
+              tone="california"
+              label="加州时间"
+              zone={ZONES.california}
+              now={now}
+              targetDate={targetDate}
+              hiddenUnits={hiddenUnitSet}
+            />
           </div>
 
           <div className="summary-strip">
@@ -211,7 +305,7 @@ export default function Home() {
               <span>加州：{targetCalifornia}</span>
             </div>
             <div className="hours-box">
-              <span>{totalHours}</span>
+              <span>{visibleTotalHours}</span>
               <b>小时</b>
             </div>
           </div>
@@ -219,11 +313,25 @@ export default function Home() {
 
         <aside className="side-panel">
           <div className="visual-panel">
-            <TimeRibbon now={now} />
+            <TimeRibbon now={now} hiddenUnits={hiddenUnitSet} />
           </div>
           <div className="clock-stack">
-            <ClockCard tone="beijing" label="北京时间" zone={ZONES.beijing} now={now} targetDate={targetDate} />
-            <ClockCard tone="california" label="加州时间" zone={ZONES.california} now={now} targetDate={targetDate} />
+            <ClockCard
+              tone="beijing"
+              label="北京时间"
+              zone={ZONES.beijing}
+              now={now}
+              targetDate={targetDate}
+              hiddenUnits={hiddenUnitSet}
+            />
+            <ClockCard
+              tone="california"
+              label="加州时间"
+              zone={ZONES.california}
+              now={now}
+              targetDate={targetDate}
+              hiddenUnits={hiddenUnitSet}
+            />
           </div>
         </aside>
       </section>

@@ -9,6 +9,8 @@ export type TimeZoneKey =
   | "Asia/Shanghai"
   | "America/Los_Angeles";
 
+export type TimeUnitKey = "days" | "hours" | "minutes" | "seconds";
+
 export const DEFAULT_CONFIG: CountdownConfig = {
   title: "期末考试",
   date: "2026-06-18",
@@ -17,6 +19,8 @@ export const DEFAULT_CONFIG: CountdownConfig = {
 };
 
 export const STORAGE_KEY = "time-anchor-countdown-next-v1";
+export const HIDDEN_UNITS_STORAGE_KEY = `${STORAGE_KEY}:hidden-units`;
+export const TIME_UNIT_KEYS: TimeUnitKey[] = ["days", "hours", "minutes", "seconds"];
 
 export const ZONES = {
   beijing: "Asia/Shanghai",
@@ -126,6 +130,18 @@ export function formatTime(date: Date, timeZone: string) {
   }).format(date);
 }
 
+export function formatMaskedClockTime(
+  date: Date,
+  timeZone: string,
+  hiddenUnits: ReadonlySet<TimeUnitKey>
+) {
+  const parts = getWallParts(date, timeZone);
+  const hour = hiddenUnits.has("hours") ? "••" : pad2(parts.hour);
+  const minute = hiddenUnits.has("minutes") ? "••" : pad2(parts.minute);
+  const second = hiddenUnits.has("seconds") ? "••" : pad2(parts.second);
+  return `${hour}:${minute}:${second}`;
+}
+
 export function formatDate(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone,
@@ -134,6 +150,17 @@ export function formatDate(date: Date, timeZone: string) {
     day: "2-digit",
     weekday: "short"
   }).format(date);
+}
+
+export function formatMaskedDate(
+  date: Date,
+  timeZone: string,
+  hiddenUnits: ReadonlySet<TimeUnitKey>
+) {
+  if (hiddenUnits.has("days")) {
+    return "••••/••/••";
+  }
+  return formatDate(date, timeZone);
 }
 
 export function formatTargetFull(date: Date, timeZone: string) {
@@ -151,6 +178,26 @@ export function formatTargetFull(date: Date, timeZone: string) {
     hourCycle: "h23"
   }).format(date);
   return `${dateText} ${timeText}`;
+}
+
+export function formatMaskedTargetFull(
+  date: Date,
+  timeZone: string,
+  hiddenUnits: ReadonlySet<TimeUnitKey>
+) {
+  const dateText = hiddenUnits.has("days")
+    ? "••••/••/••"
+    : new Intl.DateTimeFormat("zh-CN", {
+        timeZone,
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short"
+      }).format(date);
+  const parts = getWallParts(date, timeZone);
+  const hour = hiddenUnits.has("hours") ? "••" : pad2(parts.hour);
+  const minute = hiddenUnits.has("minutes") ? "••" : pad2(parts.minute);
+  return `${dateText} ${hour}:${minute}`;
 }
 
 export function getRemainingParts(remainingMs: number) {

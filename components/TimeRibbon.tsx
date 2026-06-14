@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { formatTime, ZONES } from "@/lib/time";
+import { formatMaskedClockTime, TimeUnitKey, ZONES } from "@/lib/time";
 
 type TimeRibbonProps = {
   now: Date | null;
+  hiddenUnits: ReadonlySet<TimeUnitKey>;
 };
 
-export function TimeRibbon({ now }: TimeRibbonProps) {
+export function TimeRibbon({ now, hiddenUnits }: TimeRibbonProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -95,14 +96,14 @@ export function TimeRibbon({ now }: TimeRibbonProps) {
         ca.y,
         teal,
         "加州",
-        now ? formatTime(now, ZONES.california) : "--:--"
+        now ? formatMaskedClockTime(now, ZONES.california, hiddenUnits) : "--:--"
       );
       marker(
         bj.x,
         bj.y,
         coral,
         "北京",
-        now ? formatTime(now, ZONES.beijing) : "--:--"
+        now ? formatMaskedClockTime(now, ZONES.beijing, hiddenUnits) : "--:--"
       );
 
       ctx.fillStyle = ink;
@@ -117,7 +118,7 @@ export function TimeRibbon({ now }: TimeRibbonProps) {
     draw();
     window.addEventListener("resize", draw);
     return () => window.removeEventListener("resize", draw);
-  }, [now]);
+  }, [now, hiddenUnits]);
 
   return <canvas ref={canvasRef} className="time-ribbon" aria-label="timezone route visualization" />;
 }

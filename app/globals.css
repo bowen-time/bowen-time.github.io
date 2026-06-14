@@ -307,20 +307,73 @@ button {
 .count-unit {
   min-width: 0;
   min-height: 158px;
-  padding: 22px 14px 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  perspective: 900px;
+  text-align: center;
+}
+
+.count-unit__inner {
+  width: 100%;
+  min-height: 158px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent),
     var(--surface-soft);
+  display: block;
+  position: relative;
+  transform-style: preserve-3d;
+  transition:
+    transform 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.count-unit:hover .count-unit__inner {
+  border-color: rgba(15, 118, 110, 0.48);
+  box-shadow: 0 14px 30px rgba(15, 118, 110, 0.13);
+}
+
+.count-unit:focus-visible {
+  outline: 0;
+}
+
+.count-unit:focus-visible .count-unit__inner {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+}
+
+.count-unit.is-hidden .count-unit__inner {
+  transform: rotateY(180deg);
+}
+
+.count-unit__face {
+  position: absolute;
+  inset: 0;
+  padding: 22px 14px 20px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  backface-visibility: hidden;
+  transform: translateZ(1px);
 }
 
-.count-unit strong {
+.count-unit__back {
+  background:
+    linear-gradient(180deg, rgba(15, 118, 110, 0.1), transparent),
+    var(--surface-soft);
+  color: var(--muted);
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+.count-unit__front strong,
+.count-unit__mask {
   display: block;
   width: auto;
   text-align: center;
@@ -330,7 +383,13 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.count-unit span {
+.count-unit__mask {
+  color: var(--teal);
+  opacity: 0.76;
+}
+
+.count-unit__front span,
+.count-unit__back span:last-child {
   display: block;
   margin-top: 13px;
   color: var(--muted);
@@ -676,14 +735,23 @@ button {
 
   .count-unit {
     min-height: 128px;
+  }
+
+  .count-unit__inner {
+    min-height: 128px;
+  }
+
+  .count-unit__face {
     padding: 14px 9px 13px;
   }
 
-  .count-unit strong {
+  .count-unit__front strong,
+  .count-unit__mask {
     font-size: 2.35rem;
   }
 
-  .count-unit span {
+  .count-unit__front span,
+  .count-unit__back span:last-child {
     margin-top: 8px;
     font-size: 0.78rem;
   }
