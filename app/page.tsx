@@ -53,9 +53,11 @@ function ClockCard({ tone, label, zone, now, targetDate, hiddenUnits }: ClockCar
           <p className="clock-time">{now ? formatMaskedClockTime(now, zone, hiddenUnits) : "--:--:--"}</p>
         </div>
       </div>
-      <div className={`clock-date-row${hiddenUnits.has("days") ? " is-hidden" : ""}`}>
-        <span>{now ? formatMaskedDate(now, zone, hiddenUnits) : "--"}</span>
-      </div>
+      {!hiddenUnits.has("days") && (
+        <div className="clock-date-row">
+          <span>{now ? formatMaskedDate(now, zone, hiddenUnits) : "--"}</span>
+        </div>
+      )}
       <p className="target-line">考试时：{formatMaskedTargetFull(targetDate, zone, hiddenUnits)}</p>
     </article>
   );
@@ -95,24 +97,28 @@ function readSavedHiddenUnits() {
 }
 
 function maskDateInput(dateValue: string, hiddenUnits: ReadonlySet<TimeUnitKey>) {
-  return hiddenUnits.has("days") ? "••••-••-••" : dateValue;
+  return hiddenUnits.has("days") ? "已隐藏" : dateValue;
 }
 
 function maskTimeInput(timeValue: string, hiddenUnits: ReadonlySet<TimeUnitKey>) {
   const [hour = "--", minute = "--"] = timeValue.split(":");
-  return `${hiddenUnits.has("hours") ? "••" : hour}:${hiddenUnits.has("minutes") ? "••" : minute}`;
+  const visibleParts = [
+    hiddenUnits.has("hours") ? null : hour,
+    hiddenUnits.has("minutes") ? null : minute
+  ].filter((part): part is string => Boolean(part));
+  return visibleParts.length ? visibleParts.join(":") : "已隐藏";
 }
 
-function maskCountdownValue(
-  value: number,
-  unit: TimeUnitKey,
-  hiddenUnits: ReadonlySet<TimeUnitKey>,
-  padded = false
+function formatRemainingSummary(
+  parts: ReturnType<typeof getRemainingParts>,
+  hiddenUnits: ReadonlySet<TimeUnitKey>
 ) {
-  if (hiddenUnits.has(unit)) {
-    return unit === "days" ? "••" : "••";
-  }
-  return padded ? pad2(value) : String(value);
+  const visibleParts = [
+    hiddenUnits.has("days") ? null : `${parts.days} 天`,
+    hiddenUnits.has("hours") ? null : `${parts.hours} 小时`,
+    hiddenUnits.has("minutes") ? null : `${parts.minutes} 分钟`
+  ].filter((part): part is string => Boolean(part));
+  return visibleParts.length ? `还剩 ${visibleParts.join(" ")}` : "剩余时间已隐藏";
 }
 
 export default function Home() {
@@ -150,18 +156,14 @@ export default function Home() {
   const actualTargetCalifornia = formatTargetFull(targetDate, ZONES.california);
   const targetBeijing = formatMaskedTargetFull(targetDate, ZONES.beijing, hiddenUnitSet);
   const targetCalifornia = formatMaskedTargetFull(targetDate, ZONES.california, hiddenUnitSet);
-  const summary = `还剩 ${maskCountdownValue(parts.days, "days", hiddenUnitSet)} 天 ${maskCountdownValue(
-    parts.hours,
-    "hours",
-    hiddenUnitSet
-  )} 小时 ${maskCountdownValue(parts.minutes, "minutes", hiddenUnitSet)} 分钟`;
+  const summary = formatRemainingSummary(parts, hiddenUnitSet);
   const totalHoursHidden = hiddenUnitSet.has("days") || hiddenUnitSet.has("hours");
-  const visibleTotalHours = totalHoursHidden ? "•••" : totalHours;
+  const visibleTotalHours = totalHoursHidden ? "隐藏" : totalHours;
   const displayUnits: Array<{ key: TimeUnitKey; label: string; value: string }> = [
-    { key: "days", label: "天", value: now ? maskCountdownValue(parts.days, "days", hiddenUnitSet) : "--" },
-    { key: "hours", label: "小时", value: now ? maskCountdownValue(parts.hours, "hours", hiddenUnitSet, true) : "--" },
-    { key: "minutes", label: "分钟", value: now ? maskCountdownValue(parts.minutes, "minutes", hiddenUnitSet, true) : "--" },
-    { key: "seconds", label: "秒", value: now ? maskCountdownValue(parts.seconds, "seconds", hiddenUnitSet, true) : "--" }
+    { key: "days", label: "天", value: now ? String(parts.days) : "--" },
+    { key: "hours", label: "小时", value: now ? pad2(parts.hours) : "--" },
+    { key: "minutes", label: "分钟", value: now ? pad2(parts.minutes) : "--" },
+    { key: "seconds", label: "秒", value: now ? pad2(parts.seconds) : "--" }
   ];
 
   const openSettings = () => {
@@ -270,10 +272,7 @@ export default function Home() {
                       <strong>{unit.value}</strong>
                       <span>{unit.label}</span>
                     </span>
-                    <span className="count-unit__face count-unit__back" aria-hidden="true">
-                      <span className="count-unit__mask">••</span>
-                      <span>{unit.label}</span>
-                    </span>
+                    <span className="count-unit__face count-unit__back" aria-hidden="true" />
                   </span>
                 </button>
               );

@@ -136,10 +136,12 @@ export function formatMaskedClockTime(
   hiddenUnits: ReadonlySet<TimeUnitKey>
 ) {
   const parts = getWallParts(date, timeZone);
-  const hour = hiddenUnits.has("hours") ? "••" : pad2(parts.hour);
-  const minute = hiddenUnits.has("minutes") ? "••" : pad2(parts.minute);
-  const second = hiddenUnits.has("seconds") ? "••" : pad2(parts.second);
-  return `${hour}:${minute}:${second}`;
+  const visibleParts = [
+    hiddenUnits.has("hours") ? null : pad2(parts.hour),
+    hiddenUnits.has("minutes") ? null : pad2(parts.minute),
+    hiddenUnits.has("seconds") ? null : pad2(parts.second)
+  ].filter((part): part is string => Boolean(part));
+  return visibleParts.length ? visibleParts.join(":") : "已隐藏";
 }
 
 export function formatDate(date: Date, timeZone: string) {
@@ -158,7 +160,7 @@ export function formatMaskedDate(
   hiddenUnits: ReadonlySet<TimeUnitKey>
 ) {
   if (hiddenUnits.has("days")) {
-    return "••••/••/••";
+    return "已隐藏";
   }
   return formatDate(date, timeZone);
 }
@@ -185,19 +187,29 @@ export function formatMaskedTargetFull(
   timeZone: string,
   hiddenUnits: ReadonlySet<TimeUnitKey>
 ) {
-  const dateText = hiddenUnits.has("days")
-    ? "••••/••/••"
-    : new Intl.DateTimeFormat("zh-CN", {
+  const visibleParts = [];
+  if (!hiddenUnits.has("days")) {
+    visibleParts.push(
+      new Intl.DateTimeFormat("zh-CN", {
         timeZone,
         year: "numeric",
         month: "long",
         day: "numeric",
         weekday: "short"
-      }).format(date);
+      }).format(date)
+    );
+  }
+
   const parts = getWallParts(date, timeZone);
-  const hour = hiddenUnits.has("hours") ? "••" : pad2(parts.hour);
-  const minute = hiddenUnits.has("minutes") ? "••" : pad2(parts.minute);
-  return `${dateText} ${hour}:${minute}`;
+  const timeParts = [
+    hiddenUnits.has("hours") ? null : pad2(parts.hour),
+    hiddenUnits.has("minutes") ? null : pad2(parts.minute)
+  ].filter((part): part is string => Boolean(part));
+  if (timeParts.length) {
+    visibleParts.push(timeParts.join(":"));
+  }
+
+  return visibleParts.length ? visibleParts.join(" ") : "已隐藏";
 }
 
 export function getRemainingParts(remainingMs: number) {
